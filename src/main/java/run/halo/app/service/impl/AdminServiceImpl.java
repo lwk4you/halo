@@ -3,6 +3,7 @@ package run.halo.app.service.impl;
 import cn.hutool.core.io.file.FileReader;
 import cn.hutool.core.lang.Validator;
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.ApplicationEventPublisher;
@@ -19,10 +20,12 @@ import run.halo.app.exception.NotFoundException;
 import run.halo.app.exception.ServiceException;
 import run.halo.app.mail.MailService;
 import run.halo.app.model.dto.EnvironmentDTO;
+import run.halo.app.model.dto.LoginPreCheckDTO;
 import run.halo.app.model.dto.StatisticDTO;
 import run.halo.app.model.entity.User;
 import run.halo.app.model.enums.CommentStatus;
 import run.halo.app.model.enums.LogType;
+import run.halo.app.model.enums.MFAType;
 import run.halo.app.model.enums.PostStatus;
 import run.halo.app.model.params.LoginParam;
 import run.halo.app.model.params.ResetPasswordParam;
@@ -35,6 +38,7 @@ import run.halo.app.security.util.SecurityUtils;
 import run.halo.app.service.*;
 import run.halo.app.utils.FileUtils;
 import run.halo.app.utils.HaloUtils;
+import run.halo.app.utils.TwoFactorAuthUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -124,7 +128,8 @@ public class AdminServiceImpl implements AdminService {
 
 
     @Override
-    public AuthToken authenticate(LoginParam loginParam) {
+    @NonNull
+    public User authenticate(@NonNull LoginParam loginParam) {
         Assert.notNull(loginParam, "Login param must not be null");
 
         String username = loginParam.getUsername();
@@ -138,7 +143,7 @@ public class AdminServiceImpl implements AdminService {
             user = Validator.isEmail(username) ?
                 userService.getByEmailOfNonNull(username) : userService.getByUsernameOfNonNull(username);
         } catch (NotFoundException e) {
-            log.error("Failed to find user by name: " + username, e);
+            log.error("Failed to find user by name: " + username);
             eventPublisher.publishEvent(new LogEvent(this, loginParam.getUsername(), LogType.LOGIN_FAILED, loginParam.getUsername()));
 
             throw new BadRequestException(mismatchTip);
@@ -151,6 +156,23 @@ public class AdminServiceImpl implements AdminService {
             eventPublisher.publishEvent(new LogEvent(this, loginParam.getUsername(), LogType.LOGIN_FAILED, loginParam.getUsername()));
 
             throw new BadRequestException(mismatchTip);
+        }
+
+        return user;
+    }
+
+    @Override
+    @NonNull
+    public AuthToken authCodeCheck(@NonNull final LoginParam loginParam) {
+        // get user
+        final User user = this.authenticate(loginParam);
+
+        // check authCode
+        if (MFAType.useMFA(user.getMfaType())) {
+            if (StrUtil.isBlank(loginParam.getAuthcode())) {
+                throw new BadRequestException("请输入两步验证码");
+            }
+            TwoFactorAuthUtils.validateTFACode(user.getMfaKey(), loginParam.getAuthcode());
         }
 
         if (SecurityContextHolder.getContext().isAuthenticated()) {
@@ -208,7 +230,7 @@ public class AdminServiceImpl implements AdminService {
         // Gets random code.
         String code = RandomUtil.randomNumbers(6);
 
-        log.info("Get reset password code:{}", code);
+        log.info("Got reset password code:{}", code);
 
         // Cache code.
         cacheStore.putAny("code", code, 5, TimeUnit.MINUTES);
@@ -257,6 +279,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
+    @NonNull
     public StatisticDTO getCount() {
         StatisticDTO statisticDTO = new StatisticDTO();
         statisticDTO.setPostCount(postService.countByStatus(PostStatus.PUBLISHED) + sheetService.countByStatus(PostStatus.PUBLISHED));
@@ -282,6 +305,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
+    @NonNull
     public EnvironmentDTO getEnvironments() {
         EnvironmentDTO environmentDTO = new EnvironmentDTO();
 
@@ -298,7 +322,8 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    public AuthToken refreshToken(String refreshToken) {
+    @NonNull
+    public AuthToken refreshToken(@NonNull String refreshToken) {
         Assert.hasText(refreshToken, "Refresh token must not be blank");
 
         Integer userId = cacheStore.getAny(SecurityUtils.buildTokenRefreshKey(refreshToken), Integer.class)
@@ -323,9 +348,7 @@ public class AdminServiceImpl implements AdminService {
         // Request github api
         ResponseEntity<Map> responseEntity = restTemplate.getForEntity(HaloConst.HALO_ADMIN_RELEASES_LATEST, Map.class);
 
-        if (responseEntity == null ||
-            responseEntity.getStatusCode().isError() ||
-            responseEntity.getBody() == null) {
+        if (responseEntity.getStatusCode().isError() || responseEntity.getBody() == null) {
             log.debug("Failed to request remote url: [{}]", HALO_ADMIN_RELEASES_LATEST);
             throw new ServiceException("系统无法访问到 Github 的 API").setErrorData(HALO_ADMIN_RELEASES_LATEST);
         }
@@ -337,7 +360,7 @@ public class AdminServiceImpl implements AdminService {
         }
 
         try {
-            List assets = (List) assetsObject;
+            List<?> assets = (List<?>) assetsObject;
             Map assetMap = (Map) assets.stream()
                 .filter(assetPredicate())
                 .findFirst()
@@ -347,9 +370,7 @@ public class AdminServiceImpl implements AdminService {
             // Download the assets
             ResponseEntity<byte[]> downloadResponseEntity = restTemplate.getForEntity(browserDownloadUrl.toString(), byte[].class);
 
-            if (downloadResponseEntity == null ||
-                downloadResponseEntity.getStatusCode().isError() ||
-                downloadResponseEntity.getBody() == null) {
+            if (downloadResponseEntity.getStatusCode().isError() || downloadResponseEntity.getBody() == null) {
                 throw new ServiceException("Failed to request remote url: " + browserDownloadUrl.toString()).setErrorData(browserDownloadUrl.toString());
             }
 
@@ -450,7 +471,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    public void updateApplicationConfig(String content) {
+    public void updateApplicationConfig(@NonNull String content) {
         Assert.notNull(content, "Content must not be null");
 
         Path path = Paths.get(haloProperties.getWorkDir(), APPLICATION_CONFIG_NAME);
@@ -462,7 +483,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    public String getLogFiles(Long lines) {
+    public String getLogFiles(@NonNull Long lines) {
         Assert.notNull(lines, "Lines must not be null");
 
         File file = new File(haloProperties.getWorkDir(), LOG_PATH);
@@ -521,5 +542,21 @@ public class AdminServiceImpl implements AdminService {
         });
 
         return result.toString();
+    }
+
+    @Override
+    public LoginPreCheckDTO getUserEnv(@NonNull String username) {
+        Assert.notNull(username, "username must not be null");
+
+        boolean useMFA = true;
+        try {
+            final User user = Validator.isEmail(username) ?
+                userService.getByEmailOfNonNull(username) : userService.getByUsernameOfNonNull(username);
+            useMFA = MFAType.useMFA(user.getMfaType());
+        } catch (NotFoundException e) {
+            log.error("Failed to find user by name: " + username, e);
+            eventPublisher.publishEvent(new LogEvent(this, username, LogType.LOGIN_FAILED, username));
+        }
+        return new LoginPreCheckDTO(useMFA);
     }
 }

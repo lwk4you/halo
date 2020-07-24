@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import run.halo.app.model.enums.Mode;
 
 import java.time.Duration;
+import java.util.ArrayList;
 
 import static run.halo.app.model.support.HaloConst.*;
 import static run.halo.app.utils.HaloUtils.ensureSuffix;
@@ -77,5 +78,10 @@ public class HaloProperties {
      * level
      */
     private String cache = "memory";
+
+    private ArrayList<String> cacheRedisNodes = new ArrayList<>();
+
+    private String cacheRedisPassword = "";
+
 
 }

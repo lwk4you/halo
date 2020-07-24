@@ -4,11 +4,14 @@ import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import run.halo.app.Application;
+import run.halo.app.annotation.DisableOnCondition;
 import run.halo.app.cache.lock.CacheLock;
-import run.halo.app.model.annotation.DisableOnCondition;
+import run.halo.app.exception.BadRequestException;
 import run.halo.app.model.dto.EnvironmentDTO;
+import run.halo.app.model.dto.LoginPreCheckDTO;
 import run.halo.app.model.dto.StatisticDTO;
+import run.halo.app.model.entity.User;
+import run.halo.app.model.enums.MFAType;
 import run.halo.app.model.params.LoginParam;
 import run.halo.app.model.params.ResetPasswordParam;
 import run.halo.app.model.properties.PrimaryProperties;
@@ -46,11 +49,19 @@ public class AdminController {
         return optionService.getByPropertyOrDefault(PrimaryProperties.IS_INSTALLED, Boolean.class, false);
     }
 
+    @PostMapping("login/precheck")
+    @ApiOperation("Login")
+    @CacheLock(autoDelete = false, prefix = "login_precheck")
+    public LoginPreCheckDTO authPreCheck(@RequestBody @Valid LoginParam loginParam) {
+        final User user = adminService.authenticate(loginParam);
+        return new LoginPreCheckDTO(MFAType.useMFA(user.getMfaType()));
+    }
+
     @PostMapping("login")
     @ApiOperation("Login")
-    @CacheLock(autoDelete = false)
+    @CacheLock(autoDelete = false, prefix = "login_auth")
     public AuthToken auth(@RequestBody @Valid LoginParam loginParam) {
-        return adminService.authenticate(loginParam);
+        return adminService.authCodeCheck(loginParam);
     }
 
     @PostMapping("logout")
@@ -120,8 +131,9 @@ public class AdminController {
     @PostMapping(value = {"halo/restart", "spring/restart"})
     @ApiOperation("Restarts halo server")
     @DisableOnCondition
+    @Deprecated
     public void restartApplication() {
-        Application.restart();
+        throw new BadRequestException("此前的重启方案存在性能问题，故暂不支持重启功能！");
     }
 
     @GetMapping(value = "halo/logfile")

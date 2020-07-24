@@ -35,6 +35,7 @@ import run.halo.app.model.vo.PostDetailVO;
 import run.halo.app.model.vo.PostListVO;
 import run.halo.app.model.vo.SheetDetailVO;
 import run.halo.app.service.*;
+import run.halo.app.utils.DateTimeUtils;
 import run.halo.app.utils.FileUtils;
 
 import java.io.File;
@@ -46,7 +47,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -168,7 +168,7 @@ public class StaticPageServiceImpl implements StaticPageService {
     public Path zipStaticPagesDirectory() {
         try {
             String staticPagePackName = HaloConst.STATIC_PAGE_PACK_PREFIX +
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-")) +
+                DateTimeUtils.format(LocalDateTime.now(), DateTimeUtils.HORIZONTAL_LINE_DATETIME_FORMATTER) +
                 IdUtil.simpleUUID().hashCode() + ".zip";
             Path staticPageZipPath = Files.createFile(Paths.get(STATIC_PAGE_PACK_DIR, staticPagePackName));
 
@@ -534,7 +534,7 @@ public class StaticPageServiceImpl implements StaticPageService {
      * Generate tags/{slug}/index.html and tags/{slug}/{page}/index.html.
      *
      * @param page     current page
-     * @param category current category
+     * @param tag      current tag
      * @throws IOException       IOException
      * @throws TemplateException TemplateException
      */
