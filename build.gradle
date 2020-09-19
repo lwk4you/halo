@@ -137,3 +137,9 @@ dependencies {
 
     developmentOnly "org.springframework.boot:spring-boot-devtools"
 }
+
+bootRun {
+    if ( project.hasProperty('jvmArgs') ) {
+        jvmArgs project.jvmArgs.split('\\s+')
+    }
+}
