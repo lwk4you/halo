@@ -80,6 +80,7 @@ public class StartedListener implements ApplicationListener<ApplicationStartedEv
             log.debug(AnsiOutput.toString(AnsiColor.BRIGHT_BLUE, "Halo api doc was enabled at  ", blogUrl, "/swagger-ui.html"));
         }
         log.info(AnsiOutput.toString(AnsiColor.BRIGHT_YELLOW, "Halo has started successfully!"));
+        log.info(AnsiOutput.toString(AnsiColor.BRIGHT_YELLOW, "Application startup: success."));
     }
 
     /**
