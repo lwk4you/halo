@@ -45,7 +45,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipInputStream;
@@ -77,8 +76,6 @@ public class ThemeServiceImpl implements ThemeService {
     private final RestTemplate restTemplate;
 
     private final ApplicationEventPublisher eventPublisher;
-
-    private final AtomicReference<String> activeThemeId = new AtomicReference<>();
 
     /**
      * Activated theme id.
@@ -422,7 +419,7 @@ public class ThemeServiceImpl implements ThemeService {
             // Unzip to temp path
             FileUtils.unzip(zis, themeTempPath);
 
-            Path themePath = FileUtils.tryToSkipZipParentFolder(themeTempPath);
+            Path themePath = getThemeRootPath(themeTempPath);
 
             // Go to the base folder and add the theme into system
             return add(themePath);
@@ -523,7 +520,7 @@ public class ThemeServiceImpl implements ThemeService {
 
             return add(themeTmpPath);
         } catch (IOException | GitAPIException e) {
-            throw new ServiceException("主题拉取失败 " + uri, e);
+            throw new ServiceException("主题拉取失败 " + uri + "。" + e.getMessage(), e);
         } finally {
             FileUtils.deleteFolderQuietly(tmpPath);
         }
@@ -550,7 +547,10 @@ public class ThemeServiceImpl implements ThemeService {
 
             downloadZipAndUnzip(zipUrl, themeTmpPath);
 
-            return add(themeTmpPath);
+            // find root theme folder
+            Path themeRootPath = getThemeRootPath(themeTmpPath);
+            log.debug("Got theme root path: [{}]", themeRootPath);
+            return add(themeRootPath);
         } catch (IOException e) {
             throw new ServiceException("主题拉取失败 " + uri, e);
         } finally {
@@ -613,7 +613,7 @@ public class ThemeServiceImpl implements ThemeService {
         List<ThemeProperty> themeProperties = new ArrayList<>();
 
         if (releases == null) {
-            throw new ServiceException("主题拉取失败");
+            throw new ServiceException("主题拉取失败！可能原因：当前服务器无法链接到对方服务器或连接超时。");
         }
 
         releases.forEach(tagName -> {
@@ -642,6 +642,9 @@ public class ThemeServiceImpl implements ThemeService {
         } catch (Exception e) {
             if (e instanceof ThemeNotSupportException) {
                 throw (ThemeNotSupportException) e;
+            }
+            if (e instanceof GitAPIException) {
+                throw new ThemeUpdateException("主题更新失败！" + e.getMessage(), e);
             }
             throw new ThemeUpdateException("主题更新失败！您与主题作者可能同时更改了同一个文件，您也可以尝试删除主题并重新拉取最新的主题", e).setErrorData(themeId);
         }
@@ -681,7 +684,7 @@ public class ThemeServiceImpl implements ThemeService {
             // Unzip to temp path
             FileUtils.unzip(zis, themeTempPath);
 
-            Path preparePath = FileUtils.tryToSkipZipParentFolder(themeTempPath);
+            Path preparePath = getThemeRootPath(themeTempPath);
 
             ThemeProperty prepareThemeProperty = getProperty(preparePath);
 
@@ -857,4 +860,17 @@ public class ThemeServiceImpl implements ThemeService {
                 .orElseThrow(() -> new ThemePropertyMissingException(themePath + " 没有说明文件").setErrorData(themePath));
     }
 
+    /**
+     * Get theme root path.
+     *
+     * @param themePath theme folder path
+     * @return real theme root path
+     * @throws IOException IO exception
+     */
+    @NonNull
+    private Path getThemeRootPath(@NonNull Path themePath) throws IOException {
+        return FileUtils.findRootPath(themePath,
+                path -> StringUtils.equalsAny(path.getFileName().toString(), "theme.yaml", "theme.yml"))
+                .orElseThrow(() -> new BadRequestException("无法准确定位到主题根目录，请确认主题目录中包含 theme.yml（theme.yaml）。"));
+    }
 }
