@@ -421,6 +421,12 @@ public interface OptionService extends CrudService<Option, Integer> {
     String getJournalsPrefix();
 
     /**
+     * Get websites page custom prefix.
+     * @return websites page prefix.
+     */
+    String getWebsitesPrefix();
+
+    /**
      * Get archives custom prefix.
      *
      * @return archives prefix.

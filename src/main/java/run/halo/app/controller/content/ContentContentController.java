@@ -46,6 +46,8 @@ public class ContentContentController {
 
     private final LinkModel linkModel;
 
+    private final WebsiteModel websiteModel;
+
     private final OptionService optionService;
 
     private final PostService postService;
@@ -61,6 +63,7 @@ public class ContentContentController {
             JournalModel journalModel,
             PhotoModel photoModel,
             LinkModel linkModel,
+            WebsiteModel websiteModel,
             OptionService optionService,
             PostService postService,
             SheetService sheetService,
@@ -76,6 +79,7 @@ public class ContentContentController {
         this.postService = postService;
         this.sheetService = sheetService;
         this.cacheStore = cacheStore;
+        this.websiteModel=websiteModel;
     }
 
     @GetMapping("{prefix}")
@@ -98,6 +102,9 @@ public class ContentContentController {
         }
         if (optionService.getLinksPrefix().equals(prefix)) {
             return linkModel.list(model);
+        }
+        if (optionService.getWebsitesPrefix().equals(prefix)) {
+            return websiteModel.list(model);
         }
         return null;
     }

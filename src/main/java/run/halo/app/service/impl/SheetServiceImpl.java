@@ -221,7 +221,15 @@ public class SheetServiceImpl extends BasePostServiceImpl<Sheet> implements Shee
         journalSheet.setRouteName("JournalList");
         journalSheet.setAvailable(themeService.templateExists("journals.ftl"));
 
-        return Arrays.asList(linkSheet, photoSheet, journalSheet);
+        // websites sheet
+        IndependentSheetDTO websiteSheet = new IndependentSheetDTO();
+        websiteSheet.setId(4);
+        websiteSheet.setTitle("网站收藏");
+        websiteSheet.setFullPath(context + optionService.getWebsitesPrefix());
+        websiteSheet.setRouteName("WebsiteList");
+        websiteSheet.setAvailable(themeService.templateExists("websites.ftl"));
+
+        return Arrays.asList(linkSheet, photoSheet, journalSheet,websiteSheet);
     }
 
     @Override

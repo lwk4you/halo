@@ -46,7 +46,7 @@ management:
         include: ['httptrace', 'metrics','env','logfile','health']
 logging:
   level:
-    run.halo.app: DEBUG
+    run.halo.app: Debug
   file:
     path: ${user.home}/.halo/logs
 
